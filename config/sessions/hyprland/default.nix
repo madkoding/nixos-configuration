@@ -9,6 +9,7 @@
     ./window-rules.nix
 
     ./hyprlock/default.nix
+    ./hypridle.nix
   ];
 
   wayland.windowManager.hyprland.enable = true;
@@ -23,7 +24,8 @@
     networkmanager_dmenu
     wl-clipboard
     hyprshot
-    fd 
+    fd
+    qt6.qtmultimedia
     ripgrep
     gtk3
     cava
@@ -64,8 +66,13 @@
     };
     misc = {
       font_family = "JetBrains Mono";
+      disable_hyprland_logo = true;
+      disable_splash_rendering = true;
     };
   };
 
   home.sessionVariables.NIXOS_OZONE_WL = "1";
+  home.file.".config/hypr/scripts".source =
+  config.lib.file.mkOutOfStoreSymlink
+    "/etc/nixos/config/sessions/hyprland/scripts";
 }

@@ -1,12 +1,13 @@
 [Plymouth Theme]
 Name=simple
-Description=Fedora boot animation, inspired by the Boot animation of macOS.
+Description=NixOS boot animation, inspired by the Boot animation of macOS.
 ModuleName=two-step
 
 [two-step]
 Font=Cantarell 12
 TitleFont=Cantarell Light 30
-ImageDir=/usr/share/plymouth/themes/simple/resources
+# NixOS path placeholder. This gets dynamically replaced during the Nix build process.
+ImageDir=@out@/share/plymouth/themes/simple/resources
 DialogHorizontalAlignment=.5
 DialogVerticalAlignment=.5
 TitleHorizontalAlignment=.5
@@ -54,7 +55,7 @@ SuppressMessages=true
 ProgressBarShowPercentComplete=true
 UseProgressBar=true
 Title=Upgrading...
-SubTitle=D not turn off your computer.
+SubTitle=Do not turn off your computer.
 
 [firmware-upgrade]
 UseFirmwareBackground=false

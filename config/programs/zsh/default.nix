@@ -25,7 +25,7 @@
     '';
 
     shellAliases = {
-      edit = "sudo -E nvim";
+      edit = "sudo -E nvim -n";
       gitavail = "ssh-add $HOME/Life/Важное/recovery_keys/GitHub/github_remote_keys/key";
       update = "sudo nixos-rebuild switch";
       stop = "shutdown now";

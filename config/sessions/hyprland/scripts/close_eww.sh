@@ -14,8 +14,10 @@ EWW_CFG="$HOME/.config/eww/bar"
 # 1. List of Eww windows to force close
 WINDOWS="battery_win music_win network_win calendar_win search_bar" 
 
-# 2. Close the windows
-${EWW_BIN} --config ${EWW_CFG} close $WINDOWS 2>/dev/null
+# 2. Close the windows (Only if eww is actually running)
+if pidof eww > /dev/null; then
+    ${EWW_BIN} --config ${EWW_CFG} close $WINDOWS 2>/dev/null
+fi
 
 # 3. Clean up the toggle state files
 

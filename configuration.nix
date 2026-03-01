@@ -12,11 +12,14 @@
       <home-manager/nixos>
     ];
 
+  home-manager.backupFileExtension = "backup";
+
   # System packages
   environment.systemPackages = with pkgs; [
     wget 
     taskwarrior3
-    git 
+    git
+    btop
     neovim
     python311
     ffmpeg
@@ -31,15 +34,20 @@
     hunspellDicts.en_US
     obsidian
     obs-studio
+    p7zip
     papers
-    gnome-themes-extra
     fastfetch
+    quickshell
     gnome-shell-extensions
     grim
     playerctl
+    satty
     yq-go
     xdg-desktop-portal-gtk
     eww
+    swappy
+    slurp
+    mpvpaper
     gnome-tweaks
     pkgsCross.mingwW64.stdenv.cc
     wmctrl
@@ -110,8 +118,6 @@
   # Desktop environment, window managers and theme
   services.xserver.enable = true;
 
-  
-
   # Enable the GNOME Desktop Environment.
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
@@ -122,7 +128,11 @@
   # XDG Portals
   xdg.portal = {
       enable = true;
-      extraPortals = with pkgs; [ xdg-desktop-portal-wlr ]; 
+      extraPortals = with pkgs; [ 
+        xdg-desktop-portal-wlr 
+        xdg-desktop-portal-gtk  
+      ]; 
+      config.common.default = "*";
   };
 
   # Configure keymap in X11
@@ -207,14 +217,52 @@
     dates = "daily";
     options = "--delete-older-than 14d";
   };
+  boot = {
+    plymouth = {
+      enable = true;
+      theme = "simple";
+      themePackages = [
+        (pkgs.stdenv.mkDerivation {
+          pname = "plymouth-theme-simple";
+          version = "1.0";
+          
+          # CHANGE THIS to the actual path of your custom theme folder
+          src = /etc/nixos/config/programs/plymouth/simple; 
 
+          installPhase = ''
+            mkdir -p $out/share/plymouth/themes/simple
+            cp -r * $out/share/plymouth/themes/simple/
+            
+            # This dynamically replaces the @out@ placeholder with the real Nix store path
+            substituteInPlace $out/share/plymouth/themes/simple/simple.plymouth \
+              --replace "@out@" "$out"
+          '';
+        })      
+	];
+    };
+
+    consoleLogLevel = 0;
+    initrd.verbose = false;
+    kernelParams = [
+      "quiet"
+      "splash"
+      "boot.shell_on_fail"
+      "loglevel=3"
+      "rd.systemd.show_status=false"
+      "rd.udev.log_level=3"
+      "udev.log_priority=3"
+      "amd_pstate=active" 
+      "tsc=reliable" 
+      "asus_wmi"
+    ];
+    
+  };
   # Bootloader and kernel
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Kernel Packages and Optimization
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  boot.kernelParams = [ "amd_pstate=active" "tsc=reliable" "asus_wmi"]; 
   hardware.cpu.amd.updateMicrocode = true;
 
   boot.kernelModules = [ "tcp_bbr" ]; # FIX: Network Congestion Control (Helps with packet jitter)
