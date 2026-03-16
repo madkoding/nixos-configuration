@@ -885,10 +885,16 @@ Item {
                                 cursorShape: actionCapsule.triggered ? Qt.ArrowCursor : Qt.PointingHandCursor
                                 
                                 onPressed: { 
-                                    if (!actionCapsule.triggered && actionCapsule.fillLevel === 0.0) { drainAnim.stop(); fillAnim.start(); }
+                                    if (!actionCapsule.triggered) { 
+                                        drainAnim.stop(); 
+                                        fillAnim.start(); 
+                                    }
                                 }
                                 onReleased: {
-                                    if (!actionCapsule.triggered && actionCapsule.fillLevel < 1.0) { fillAnim.stop(); drainAnim.start(); }
+                                    if (!actionCapsule.triggered && actionCapsule.fillLevel < 1.0) { 
+                                        fillAnim.stop(); 
+                                        drainAnim.start(); 
+                                    }
                                 }
                             }
 

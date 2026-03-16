@@ -7,8 +7,10 @@ SRC_DIR="$HOME/Images/Wallpapers"
 THUMB_DIR="$HOME/.cache/wallpaper_picker/thumbs"
 
 IPC_FILE="/tmp/qs_widget_state"
+NETWORK_MODE_FILE="/tmp/qs_network_mode"
 ACTION="$1"
 TARGET="$2"
+SUBTARGET="$3"
 
 handle_wallpaper_prep() {
     mkdir -p "$THUMB_DIR"
@@ -109,11 +111,23 @@ if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
     WORKSPACE_NUM="$ACTION"
     MOVE_OPT="$2"
     echo "close" > "$IPC_FILE"
+    
     if [[ "$MOVE_OPT" == "move" ]]; then
         hyprctl dispatch movetoworkspace "$WORKSPACE_NUM"
     else
         hyprctl dispatch workspace "$WORKSPACE_NUM"
     fi
+
+    # Find the address of the first window in the target workspace that isn't qs-master
+    TARGET_ADDR=$(hyprctl clients -j | jq -r ".[] | select(.workspace.id == $WORKSPACE_NUM and (.class | contains(\"qs-master\") | not) and (.title | contains(\"qs-master\") | not)) | .address" | head -n 1)
+
+    # Focus the target window if it exists, otherwise fallback to qs-master, preventing cursor warps
+    if [[ -n "$TARGET_ADDR" && "$TARGET_ADDR" != "null" ]]; then
+        hyprctl --batch "keyword cursor:no_warps true ; dispatch focuswindow address:$TARGET_ADDR ; keyword cursor:no_warps false"
+    else
+        hyprctl --batch "keyword cursor:no_warps true ; dispatch focuswindow qs-master ; keyword cursor:no_warps false"
+    fi
+
     exit 0
 fi
 
@@ -131,9 +145,35 @@ fi
 
 if [[ "$ACTION" == "open" || "$ACTION" == "toggle" ]]; then
     if [[ "$TARGET" == "network" ]]; then
-        handle_network_prep
-        echo "$TARGET" > "$IPC_FILE"
-    elif [[ "$TARGET" == "wallpaper" ]]; then
+        ACTIVE_WIDGET=$(cat /tmp/qs_active_widget 2>/dev/null)
+        CURRENT_MODE=$(cat "$NETWORK_MODE_FILE" 2>/dev/null)
+
+        if [[ "$ACTION" == "toggle" && "$ACTIVE_WIDGET" == "network" ]]; then
+            # The popup is currently open
+            if [[ -n "$SUBTARGET" ]]; then
+                if [[ "$CURRENT_MODE" == "$SUBTARGET" ]]; then
+                    # We clicked the pill matching the active tab -> Close
+                    echo "close" > "$IPC_FILE"
+                else
+                    # We clicked the pill for the OTHER tab -> Switch tabs
+                    echo "$SUBTARGET" > "$NETWORK_MODE_FILE"
+                fi
+            else
+                # Generic toggle hit while open -> Close
+                echo "close" > "$IPC_FILE"
+            fi
+        else
+            # The popup is closed, or we are forcing open
+            handle_network_prep
+            if [[ -n "$SUBTARGET" ]]; then
+                echo "$SUBTARGET" > "$NETWORK_MODE_FILE"
+            fi
+            echo "$TARGET" > "$IPC_FILE"
+        fi
+        exit 0
+    fi
+
+    if [[ "$TARGET" == "wallpaper" ]]; then
         handle_wallpaper_prep
         echo "$TARGET:$WALLPAPER_INDEX" > "$IPC_FILE"
     else

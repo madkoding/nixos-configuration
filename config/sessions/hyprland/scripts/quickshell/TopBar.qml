@@ -127,8 +127,9 @@ PanelWindow {
     }
     Timer { interval: 500; running: true; repeat: true; onTriggered: musicPoller.running = true }
 
+    // SLOW POLLER: Battery, WiFi, Bluetooth (Updates every 5 seconds)
     Process {
-        id: sysPoller
+        id: slowSysPoller
         command: ["bash", "-c", `
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --wifi-status)"
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --wifi-icon)"
@@ -138,15 +139,11 @@ PanelWindow {
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --bt-connected)"
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --battery-percent)"
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --battery-icon)"
-            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --volume)"
-            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --volume-icon)"
-            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --kb-layout)"
-            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --is-muted)"
         `]
         stdout: StdioCollector {
             onStreamFinished: {
                 let lines = this.text.trim().split("\n");
-                if (lines.length >= 12) {
+                if (lines.length >= 8) {
                     barWindow.wifiStatus = lines[0];
                     barWindow.wifiIcon = lines[1];
                     barWindow.wifiSsid = lines[2];
@@ -155,15 +152,34 @@ PanelWindow {
                     barWindow.btDevice = lines[5];
                     barWindow.batPercent = lines[6];
                     barWindow.batIcon = lines[7];
-                    barWindow.volPercent = lines[8];
-                    barWindow.volIcon = lines[9];
-                    barWindow.kbLayout = lines[10];
-                    barWindow.isMuted = (lines[11].toLowerCase() === "true");
                 }
             }
         }
     }
-    Timer { interval: 2000; running: true; repeat: true; triggeredOnStart: true; onTriggered: sysPoller.running = true }
+    Timer { interval: 1500; running: true; repeat: true; triggeredOnStart: true; onTriggered: slowSysPoller.running = true }
+
+    // FAST POLLER: Volume and Layout (Updates every 150ms for instant feedback)
+    Process {
+        id: fastSysPoller
+        command: ["bash", "-c", `
+            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --volume)"
+            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --volume-icon)"
+            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --kb-layout)"
+            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --is-muted)"
+        `]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let lines = this.text.trim().split("\n");
+                if (lines.length >= 4) {
+                    barWindow.volPercent = lines[0];
+                    barWindow.volIcon = lines[1];
+                    barWindow.kbLayout = lines[2];
+                    barWindow.isMuted = (lines[3].toLowerCase() === "true");
+                }
+            }
+        }
+    }
+    Timer { interval: 150; running: true; repeat: true; triggeredOnStart: true; onTriggered: fastSysPoller.running = true }
 
     Process {
         id: weatherPoller
@@ -325,7 +341,7 @@ PanelWindow {
                             Layout.preferredHeight: 32; radius: 10
                             color: modelData.state === "active" ? mocha.mauve : (isHovered ? mocha.surface2 : (modelData.state === "occupied" ? mocha.surface1 : "transparent"))
                             
-                            // Safe Instantiation Cascade logic (Bypassed entirely after startup to stop flicker)
+                            // Safe Instantiation Cascade logic
                             property bool initAnimTrigger: barWindow.startupCascadeFinished
                             opacity: initAnimTrigger ? 1 : 0
                             transform: Translate {
@@ -553,7 +569,7 @@ PanelWindow {
             id: rightLayout
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 12
+            spacing: 4
 
             // Decoupled Right Startup Animation
             property bool showLayout: false
@@ -571,55 +587,100 @@ PanelWindow {
 
             Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
 
-            // Quickshell System Tray 
-            RowLayout {
-                spacing: 10
-                Repeater {
-                    model: SystemTray.items
-                    delegate: Image {
-                        id: trayIcon
-                        source: modelData.icon || ""
-                        sourceSize: Qt.size(20, 20)
-                        Layout.preferredWidth: 20
-                        Layout.preferredHeight: 20
-                        
-                        property bool isHovered: trayMouse.containsMouse
-                        
-                        property bool initAnimTrigger: barWindow.startupCascadeFinished
-                        opacity: initAnimTrigger ? (isHovered ? 1.0 : 0.8) : 0.0
-                        scale: initAnimTrigger ? (isHovered ? 1.2 : 1.0) : 0.0
+            // Dedicated System Tray Pill
+            Rectangle {
+                height: 48
+                radius: 24
+                border.color: Qt.rgba(255/255, 255/255, 255/255, 0.08)
+                border.width: 1
+                
+                property real targetWidth: trayRepeater.count > 0 ? trayLayout.implicitWidth + 24 : 0
+                Layout.preferredWidth: targetWidth
+                Behavior on targetWidth { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
+                
+                // Hide pill completely if tray is empty (safer explicit check via repeater count)
+                visible: targetWidth > 0
+                opacity: targetWidth > 0 ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 300 } }
 
-                        Component.onCompleted: {
-                            if (!barWindow.startupCascadeFinished) {
-                                trayAnimTimer.interval = index * 50;
-                                trayAnimTimer.start();
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(30/255, 30/255, 46/255, 0.95) }
+                    GradientStop { position: 1.0; color: Qt.rgba(24/255, 24/255, 37/255, 0.85) }
+                }
+
+                RowLayout {
+                    id: trayLayout
+                    anchors.centerIn: parent
+                    spacing: 10
+
+                    Repeater {
+                        id: trayRepeater
+                        model: SystemTray.items
+                        delegate: Image {
+                            id: trayIcon
+                            source: modelData.icon || ""
+                            fillMode: Image.PreserveAspectFit
+                            
+                            // SMALLER ICONS AND BETTER ALIGNMENT
+                            sourceSize: Qt.size(18, 18)
+                            Layout.preferredWidth: 18
+                            Layout.preferredHeight: 18
+                            Layout.alignment: Qt.AlignVCenter
+                            
+                            property bool isHovered: trayMouse.containsMouse
+                            property bool initAnimTrigger: barWindow.startupCascadeFinished
+                            opacity: initAnimTrigger ? (isHovered ? 1.0 : 0.8) : 0.0
+                            scale: initAnimTrigger ? (isHovered ? 1.15 : 1.0) : 0.0
+
+                            Component.onCompleted: {
+                                if (!barWindow.startupCascadeFinished) {
+                                    trayAnimTimer.interval = index * 50;
+                                    trayAnimTimer.start();
+                                }
                             }
-                        }
-                        Timer {
-                            id: trayAnimTimer
-                            running: false
-                            onTriggered: trayIcon.initAnimTrigger = true
-                        }
+                            Timer {
+                                id: trayAnimTimer
+                                running: false
+                                repeat: false
+                                onTriggered: trayIcon.initAnimTrigger = true
+                            }
 
-                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
 
-                        MouseArea {
-                            id: trayMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                            onClicked: mouse => {
-                                if (mouse.button === Qt.LeftButton) modelData.activate()
-                                else if (mouse.button === Qt.MiddleButton) modelData.secondaryActivate()
-                                else if (mouse.button === Qt.RightButton) modelData.display(barWindow, mouseX, mouseY)
+                            // Mapped QsMenuAnchor directly to the trayIcon to grab the native DBus menu
+                            QsMenuAnchor {
+                                id: menuAnchor
+                                anchor.window: barWindow
+                                anchor.item: trayIcon
+                                menu: modelData.menu
+                            }
+
+                            MouseArea {
+                                id: trayMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                onClicked: mouse => {
+                                    if (mouse.button === Qt.LeftButton) {
+                                        modelData.activate();
+                                    } else if (mouse.button === Qt.MiddleButton) {
+                                        modelData.secondaryActivate();
+                                    } else if (mouse.button === Qt.RightButton) {
+                                        if (modelData.menu) {
+                                            menuAnchor.open();
+                                        } else if (typeof modelData.contextMenu === "function") {
+                                            modelData.contextMenu(mouse.x, mouse.y); // Fallback for some clients
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // System Pills Wrapper
+            // System Elements Pill
             Rectangle {
                 height: 48
                 radius: 24
@@ -665,10 +726,24 @@ PanelWindow {
 
                     // WiFi 
                     Rectangle {
+                        id: wifiPill
                         property bool isHovered: wifiMouse.containsMouse
                         radius: 17; Layout.preferredHeight: sysLayout.pillHeight; 
                         color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(255/255, 255/255, 255/255, 0.04)
                         
+                        // Solid Mocha Blue -> Sapphire gradient child rectangle for smooth transition
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 17
+                            opacity: barWindow.isWifiOn ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: mocha.blue }
+                                GradientStop { position: 1.0; color: mocha.sapphire }
+                            }
+                        }
+
                         property real targetWidth: wifiLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
                         Behavior on targetWidth { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
@@ -678,10 +753,10 @@ PanelWindow {
                         Behavior on color { ColorAnimation { duration: 200 } }
 
                         RowLayout { id: wifiLayoutRow; anchors.centerIn: parent; spacing: 8
-                            Text { text: barWindow.wifiIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isWifiOn ? mocha.blue : mocha.subtext0 }
-                            Text { text: barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: mocha.text; Layout.maximumWidth: 100; elide: Text.ElideRight }
+                            Text { text: barWindow.wifiIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isWifiOn ? mocha.base : mocha.subtext0 }
+                            Text { text: barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: barWindow.isWifiOn ? mocha.base : mocha.text; Layout.maximumWidth: 100; elide: Text.ElideRight }
                         }
-                        MouseArea { id: wifiMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network"]) }
+                        MouseArea { id: wifiMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network wifi"]) }
                     }
 
                     // Bluetooth 
@@ -692,6 +767,19 @@ PanelWindow {
                         clip: true
                         color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(255/255, 255/255, 255/255, 0.04)
                         
+                        // Solid Mocha Mauve -> Pink gradient child rectangle for smooth transition
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 17
+                            opacity: barWindow.isBtOn ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: mocha.mauve }
+                                GradientStop { position: 1.0; color: mocha.pink }
+                            }
+                        }
+
                         property real targetWidth: btLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
                         Behavior on targetWidth { NumberAnimation { duration: 350; easing.type: Easing.OutExpo } }
@@ -701,10 +789,10 @@ PanelWindow {
                         Behavior on color { ColorAnimation { duration: 200 } }
 
                         RowLayout { id: btLayoutRow; anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 12; spacing: barWindow.btDevice !== "" ? 8 : 0
-                            Text { text: barWindow.btIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isBtOn ? mocha.mauve : mocha.subtext0 }
-                            Text { visible: barWindow.btDevice !== ""; text: barWindow.btDevice; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: mocha.text; Layout.maximumWidth: 100; elide: Text.ElideRight }
+                            Text { text: barWindow.btIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isBtOn ? mocha.base : mocha.subtext0 }
+                            Text { visible: barWindow.btDevice !== ""; text: barWindow.btDevice; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: barWindow.isBtOn ? mocha.base : mocha.text; Layout.maximumWidth: 100; elide: Text.ElideRight }
                         }
-                        MouseArea { id: btMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network"]) }
+                        MouseArea { id: btMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network bt"]) }
                     }
 
                     // Volume (Dims & Strikethrough when muted)

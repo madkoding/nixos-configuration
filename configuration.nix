@@ -20,11 +20,12 @@
     taskwarrior3
     git
     btop
+    matugen
     neovim
+    direnv
     python311
     ffmpeg
     python314
-    adw-gtk3
     (wrapFirefox (pkgs.firefox-unwrapped.override { pipewireSupport = true; }) {})
     telegram-desktop
     kitty
@@ -37,6 +38,7 @@
     p7zip
     papers
     fastfetch
+    jetbrains.idea-community
     quickshell
     gnome-shell-extensions
     grim
@@ -98,7 +100,9 @@
   # Install firefox.
   programs.firefox.enable = true;
 
-  programs.dconf.enable = true;
+  programs.dconf = {
+    enable = true;
+  };
 
   programs.steam = {
     enable = true;
@@ -127,12 +131,10 @@
   
   # XDG Portals
   xdg.portal = {
-      enable = true;
-      extraPortals = with pkgs; [ 
-        xdg-desktop-portal-wlr 
-        xdg-desktop-portal-gtk  
-      ]; 
-      config.common.default = "*";
+    enable = true;
+    extraPortals = with pkgs; [
+      xdg-desktop-portal-gtk
+    ];
   };
 
   # Configure keymap in X11
@@ -141,26 +143,24 @@
     variant = "";
   };
 
-  # Qt Theming
-  qt = {
-    enable = true;
-    style = "adwaita-dark";
-    platformTheme = "gnome";
-  };
-
   # Fonts
   fonts.packages = with pkgs; [
     udev-gothic-nf
     noto-fonts
     liberation_ttf
-  ];
+  ]; 
+
+  fonts.fontconfig = {
+    enable = true;
+    hinting.style = "slight"; 
+    subpixel.rgba = "rgb"; 
+  };
 
   # Flatpak
   services.flatpak.enable = true;
 
   # Environment Variables
-  # FIX: Changed 'your_user' to 'ilyamiro' to match your actual username
-  environment.variables.XDG_DATA_DIRS = lib.mkForce "/home/ilyamiro/.nix-profile/share:/run/current-system/sw/share";
+  # environment.variables.XDG_DATA_DIRS = lib.mkForce "/home/ilyamiro/.nix-profile/share:/run/current-system/sw/share";
 
   # Networking and time
   networking.hostName = "ilyamiro"; 

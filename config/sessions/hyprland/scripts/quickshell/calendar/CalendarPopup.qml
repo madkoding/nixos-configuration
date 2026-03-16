@@ -529,6 +529,9 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         
+                        // Spacer to maintain perfect center alignment for the month text
+                        Item { width: 32; height: 32 }
+
                         Rectangle {
                             width: 32; height: 32; radius: 16
                             color: prevMa.containsMouse ? window.surface1 : "transparent"
@@ -551,6 +554,18 @@ Item {
                             color: nextMa.containsMouse ? window.surface1 : "transparent"
                             Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; color: window.text; font.pixelSize: 16 }
                             MouseArea { id: nextMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.monthOffset++ }
+                        }
+
+                        // THE NEW DIARY BUTTON
+                        Rectangle {
+                            width: 32; height: 32; radius: 16
+                            color: diaryMa.containsMouse ? window.surface1 : "transparent"
+                            Text { anchors.centerIn: parent; text: "+"; font.family: "Iosevka Nerd Font"; color: diaryMa.containsMouse ? window.mauve : window.text; font.pixelSize: 32 }
+                            MouseArea { 
+                                id: diaryMa; anchors.fill: parent; hoverEnabled: true; 
+                                onClicked: Quickshell.execDetached(["bash", window.scriptsDir + "/diary_manager.sh"]) 
+                            }
+                            Behavior on color { ColorAnimation { duration: 150 } }
                         }
                     }
 

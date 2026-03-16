@@ -9,7 +9,7 @@ Item {
     id: window
 
     // -------------------------------------------------------------------------
-    // INSTANT CACHING ENGINE
+    // INSTANT CACHING ENGINE & SHARED STATE
     // -------------------------------------------------------------------------
     Settings {
         id: cache
@@ -18,7 +18,32 @@ Item {
         property string lastBtJson: ""
     }
 
+    property bool ignoreNextModeFileUpdate: false
+
+    Process {
+        id: modeReader
+        command: ["bash", "-c", "cat /tmp/qs_network_mode 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let mode = this.text.trim();
+                if ((mode === "wifi" || mode === "bt") && window.activeMode !== mode) {
+                    window.ignoreNextModeFileUpdate = true;
+                    window.activeMode = mode;
+                }
+            }
+        }
+    }
+
+    Timer {
+        interval: 100
+        running: true
+        repeat: true
+        onTriggered: modeReader.running = true
+    }
+
     Component.onCompleted: {
+        Quickshell.execDetached(["bash", "-c", "if [ ! -f /tmp/qs_network_mode ]; then echo '" + activeMode + "' > /tmp/qs_network_mode; fi"]);
+
         // Process cached JSON FIRST so the arrays populate before animations trigger
         if (cache.lastWifiJson !== "") processWifiJson(cache.lastWifiJson);
         if (cache.lastBtJson !== "") processBtJson(cache.lastBtJson);
@@ -143,6 +168,11 @@ Item {
     }
 
     onActiveModeChanged: {
+        if (!window.ignoreNextModeFileUpdate) {
+            Quickshell.execDetached(["bash", "-c", "echo '" + window.activeMode + "' > /tmp/qs_network_mode"]);
+        }
+        window.ignoreNextModeFileUpdate = false;
+
         // Complete wipe of nodes to prevent any ghost artifacts between modes
         infoListModel.clear();
         window.busyTasks = ({});

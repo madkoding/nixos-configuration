@@ -1,6 +1,5 @@
 { config, pkgs, ... }:
 
-
 let
   # 1. Define the path to your programs directory
   programsDir = ./config/programs;
@@ -13,13 +12,11 @@ let
     (name: files.${name} == "directory") 
     (builtins.attrNames files);
 
-  # 4. Map the directory names to import paths (e.g., ./config/programs/zsh)
-  #    Nix automatically looks for default.nix inside these folders.
+  # 4. Map the directory names to import paths
   programImports = map (name: programsDir + "/${name}") directories;
 in
 {
   imports = [
-
     # sessions
     ./config/sessions/hyprland/default.nix
   ] ++ programImports; 
@@ -30,6 +27,7 @@ in
   
   home.packages = with pkgs; [
       adwaita-icon-theme
+      adw-gtk3 
   ];
 
   # set cursor 
@@ -43,8 +41,6 @@ in
         package = 
           pkgs.runCommand "moveUp" {} ''
             mkdir -p $out/share/icons
-            # The ArcMidnight zip has the cursor files inside a 'dist' folder, 
-            # so we append '/dist' to the fetched source path.
             ln -s ${pkgs.fetchzip {
               url = url;
               hash = hash;
@@ -54,42 +50,54 @@ in
   in
     getFrom 
       "https://github.com/yeyushengfan258/ArcMidnight-Cursors/archive/refs/heads/main.zip"
-      "sha256-VgOpt0rukW0+rSkLFoF9O0xO/qgwieAchAev1vjaqPE=" # See instructions below
+      "sha256-VgOpt0rukW0+rSkLFoF9O0xO/qgwieAchAev1vjaqPE=" 
       "ArcMidnight-Cursors";
 
-  dconf = {
-    enable = true;
-    settings = {
-      "org/gnome/desktop/interface" = {
-        color-scheme = "prefer-dark";
-      };
+  # Force the dark color scheme and explicitly set GTK3 theme in dconf
+  dconf.settings = {
+    "org/gnome/desktop/interface" = {
+      color-scheme = "prefer-dark";
+      gtk-theme = "adw-gtk3-dark";
     };
   };
+  
+  home.sessionVariables = {
+    # Left intentionally blank to prevent GTK variable overrides
+  };
+
   services.easyeffects.enable = true;  
 
   gtk = {
-    gtk3 = {
-      extraConfig = {
-        gtk-application-prefer-dark-theme=1;
-      };
-  
-    };
-    gtk4 = {
-      extraConfig = {
-        gtk-application-prefer-dark-theme=1;
-      };
-  
-    };
     enable = true;
-     };
-
-  home.sessionVariables = {
-    QT_QPA_PLATFORMTHEME = "qt6ct";
+    
+    # Global `theme` block has been entirely removed to protect GTK4 apps.
+    
+    # Target GTK3 specifically
+    gtk3.extraConfig = {
+      gtk-application-prefer-dark-theme = 1;
+      gtk-theme-name = "adw-gtk3-dark";
+    };
+    
+    # Keep GTK4 native but ensure it requests the dark preference
+    gtk4.extraConfig = {
+      gtk-application-prefer-dark-theme = 1;
+    };
   };
   
+  qt = {
+    enable = true;
+    platformTheme.name = "qt6ct";
+  };
+  
+  xdg.portal = {
+    enable = true;
+    extraPortals = with pkgs; [
+      xdg-desktop-portal-gtk
+    ];
+    config.common.default = "*";
+  };
+
   programs.home-manager.enable = true;
-
-
 
   fonts.fontconfig.enable = true; 
   
@@ -99,6 +107,4 @@ in
       recursive = true;
     };
   };
-
 }
-

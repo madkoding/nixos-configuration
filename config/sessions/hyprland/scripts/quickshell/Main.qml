@@ -12,7 +12,7 @@ FloatingWindow {
     // Always mapped to prevent Wayland from destroying the surface and Hyprland from auto-centering!
     visible: true 
 
-    // FIX: Push it off-screen the moment the component loads using Hyprland's dispatcher
+    // Push it off-screen the moment the component loads using Hyprland's dispatcher
     Component.onCompleted: {
         Quickshell.execDetached(["bash", "-c", `hyprctl dispatch resizewindowpixel "exact 1 1,title:^(qs-master)$" && hyprctl dispatch movewindowpixel "exact -5000 -5000,title:^(qs-master)$"`]);
     }
@@ -21,10 +21,17 @@ FloatingWindow {
     property int screenH: 1080
 
     property string currentActive: "hidden" 
+    onCurrentActiveChanged: {
+        Quickshell.execDetached(["bash", "-c", "echo '" + currentActive + "' > /tmp/qs_active_widget"]);
+    }
+
     property bool isVisible: false
     property string activeArg: ""
     property bool disableMorph: false 
     property bool isWallpaperTransition: false 
+
+    // NEW: Dynamic duration to allow fast opening but keep morphing smooth
+    property int morphDuration: 500
 
     // Safe park coordinates to avoid cursor traps
     property int currentX: -5000
@@ -34,7 +41,7 @@ FloatingWindow {
     property real animH: 1
 
     property var layouts: {
-        "battery":   { w: 480, h: 760, x: screenW - 500, y: 70, comp: "battery/BatteryPopup.qml" },
+        "battery":   { w: 850, h: 760, x: screenW - 870, y: 70, comp: "battery/BatteryPopup.qml" },
         "calendar":  { w: 1450, h: 750, x: 235, y: 70, comp: "calendar/CalendarPopup.qml" },
         "music":     { w: 700, h: 620, x: 12, y: 70, comp: "music/MusicPopup.qml" },
         "network":   { w: 900, h: 700, x: screenW - 920, y: 70, comp: "network/NetworkPopup.qml" },
@@ -42,7 +49,6 @@ FloatingWindow {
         "wallpaper": { w: 1920, h: 500, x: 0, y: Math.floor((screenH/2)-(500/2)), comp: "wallpaper/WallpaperPicker.qml" },
         "hidden":    { w: 1, h: 1, x: -5000, y: -5000, comp: "" } 
     }
-
     width: 1
     height: 1
     implicitWidth: width
@@ -58,14 +64,15 @@ FloatingWindow {
         height: masterWindow.animH
         clip: true 
 
-        Behavior on width { enabled: !masterWindow.disableMorph; NumberAnimation { duration: 350; easing.type: Easing.InOutCubic } }
-        Behavior on height { enabled: !masterWindow.disableMorph; NumberAnimation { duration: 350; easing.type: Easing.InOutCubic } }
+        // MODIFIED: Use dynamic morphDuration instead of hardcoded 500
+        Behavior on width { enabled: !masterWindow.disableMorph; NumberAnimation { duration: masterWindow.morphDuration; easing.type: Easing.InOutCubic } }
+        Behavior on height { enabled: !masterWindow.disableMorph; NumberAnimation { duration: masterWindow.morphDuration; easing.type: Easing.InOutCubic } }
 
         opacity: masterWindow.isVisible ? 1.0 : 0.0
-        Behavior on opacity { NumberAnimation { duration: masterWindow.isWallpaperTransition ? 150 : 300; easing.type: Easing.InOutSine } }
+        // MODIFIED: Speed up opacity fade-in to match the fast opening (200ms when fast, 300ms when morphing)
+        Behavior on opacity { NumberAnimation { duration: masterWindow.isWallpaperTransition ? 150 : (masterWindow.morphDuration === 500 ? 300 : 200); easing.type: Easing.InOutSine } }
 
-        // INNER FIXED CONTAINER: This prevents ListView layout lag by keeping the StackView at target size
-        // while the outer clipped Item smoothly expands around it!
+        // INNER FIXED CONTAINER
         Item {
             anchors.centerIn: parent
             width: masterWindow.currentActive !== "hidden" && layouts[masterWindow.currentActive] ? layouts[masterWindow.currentActive].w : 1
@@ -80,15 +87,17 @@ FloatingWindow {
                     if (currentItem) currentItem.forceActiveFocus();
                 }
 
+                // Perfectly synchronized crossfade! 
+                // Both take exactly 350ms so they blend seamlessly without a gap.
                 replaceEnter: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 450; easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 450; easing.type: Easing.OutBack }
+                        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 350; easing.type: Easing.InOutQuad }
+                        NumberAnimation { property: "scale"; from: 0.95; to: 1.0; duration: 350; easing.type: Easing.OutBack }
                     }
                 }
                 replaceExit: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 350; easing.type: Easing.InCubic }
+                        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 350; easing.type: Easing.InOutQuad }
                         NumberAnimation { property: "scale"; from: 1.0; to: 1.05; duration: 350; easing.type: Easing.InCubic }
                     }
                 }
@@ -107,6 +116,7 @@ FloatingWindow {
 
         if (newWidget === "hidden") {
             if (currentActive !== "hidden" && layouts[currentActive]) {
+                masterWindow.morphDuration = 250; // FAST CLOSE
                 masterWindow.disableMorph = false;
                 let t = layouts[currentActive];
                 let cx = Math.floor(t.x + (t.w/2));
@@ -121,7 +131,7 @@ FloatingWindow {
             }
         } else {
             if (currentActive === "hidden") {
-                // ALL widgets now share the unified 1x1 dot morph pipeline to prevent fly-ins!
+                masterWindow.morphDuration = 250; // FAST INITIAL OPEN
                 masterWindow.disableMorph = false;
                 let t = layouts[newWidget];
                 let cx = Math.floor(t.x + (t.w / 2));
@@ -139,6 +149,7 @@ FloatingWindow {
                 prepTimer.start();
                 
             } else {
+                masterWindow.morphDuration = 500; // SMOOTH MORPH BETWEEN WIDGETS
                 if (involvesWallpaper) {
                     masterWindow.disableMorph = true;
                     masterWindow.isVisible = false; 
@@ -203,7 +214,7 @@ FloatingWindow {
 
     Timer {
         id: resetMorphTimer
-        interval: 350
+        interval: masterWindow.morphDuration // MODIFIED: Synced with the dynamic animation duration
         onTriggered: masterWindow.disableMorph = false
     }
 
@@ -265,7 +276,7 @@ FloatingWindow {
 
     Timer {
         id: delayedClear
-        interval: masterWindow.isWallpaperTransition ? 150 : 350
+        interval: masterWindow.isWallpaperTransition ? 150 : masterWindow.morphDuration // MODIFIED: Synced dynamically
         onTriggered: {
             masterWindow.currentActive = "hidden";
             widgetStack.clear();

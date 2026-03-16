@@ -11,18 +11,7 @@
     history.path = "$HOME/.zsh_history";
     history.ignoreAllDups = true;
 
-    initContent = ''
-    cd() {
-      builtin cd $@ &&
-      ls
-    }
-
-    pasteimg() {
-        local name="''${1:-clipboard.png}"
-        [[ "$name" != *.png ]] && name="$name.png"
-        wl-paste --type image/png | sudo tee "$name" > /dev/null
-    }
-    '';
+    initContent = builtins.readFile ./zsh-init.sh;
 
     shellAliases = {
       edit = "sudo -E nvim -n";
@@ -54,8 +43,4 @@
       programs = "/etc/nixos/config/programs";
     };
 
-
 }
-
-
-
