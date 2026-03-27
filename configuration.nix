@@ -19,9 +19,11 @@
     wget 
     taskwarrior3
     git
+    killall
     btop
     matugen
-    neovim
+    neovim 
+    fzf
     direnv
     python311
     ffmpeg

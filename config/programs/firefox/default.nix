@@ -4,100 +4,28 @@
   programs.firefox = {
     enable = true;
     profiles."zawmoi9h.default" = {
+      id = 0;
       isDefault = true;
       settings = {
         "toolkit.legacyUserProfileCustomizations.stylesheets" = true;
         "svg.context-properties.content.enabled" = true;
       };
-      userChrome = ''
-        @import "matugen.css";
-
-        /* OVERRIDE ALL DEFAULT THEMES */
-        :root {
-          --lwt-accent-color: var(--bg-base) !important;
-          --lwt-text-color: var(--text-main) !important;
-          --toolbar-bgcolor: var(--bg-base) !important;
-          --toolbar-color: var(--text-main) !important;
-          --urlbar-box-bgcolor: var(--bg-surface) !important;
-          --urlbar-box-text-color: var(--text-main) !important;
-          --urlbar-box-focus-bgcolor: var(--bg-surface-active) !important;
-          --tab-selected-bgcolor: var(--accent) !important;
-          --tab-selected-textcolor: var(--bg-base) !important;
-          --lwt-sidebar-background-color: var(--bg-surface) !important;
-          --lwt-sidebar-text-color: var(--text-main) !important;
-          --arrowpanel-background: var(--bg-surface) !important;
-          --arrowpanel-color: var(--text-main) !important;
-          --arrowpanel-border-color: var(--border-color) !important;
-          --autocomplete-popup-background: var(--bg-surface) !important;
-          --autocomplete-popup-color: var(--text-main) !important;
-        }
-
-        /* Clean up the Main Toolbar */
-        #TabsToolbar {
-          padding: 6px 6px 0px 6px !important;
-          background-color: var(--bg-base) !important;
-        }
-
-        /* Floating, rounded tabs */
-        .tabbrowser-tab {
-          padding: 0 4px !important;
-        }
-        
-        .tab-background {
-          border-radius: 8px !important;
-          margin-bottom: 4px !important;
-          border: none !important;
-          box-shadow: none !important;
-          background-color: transparent !important;
-          transition: background-color 0.15s ease, transform 0.15s ease !important;
-        }
-
-        /* Hover state for inactive tabs */
-        .tabbrowser-tab:hover .tab-background:not([selected="true"]) {
-          background-color: var(--bg-surface-hover) !important;
-        }
-
-        /* Fix: Active tab design and hover state lockout */
-        .tabbrowser-tab[selected="true"] .tab-background,
-        .tabbrowser-tab[selected="true"]:hover .tab-background {
-          background-color: var(--accent) !important;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important; /* Subtle pop */
-        }
-
-        /* Fix: Force text contrast on the active tab */
-        .tabbrowser-tab[selected="true"] .tab-content {
-          color: var(--tab-selected-textcolor) !important;
-        }
-
-        /* Hide annoying default dividers, separators, and context lines */
-        .tab-line,
-        .tab-context-line,
-        .tabbrowser-tab::after,
-        .tabbrowser-tab::before {
-          display: none !important;
-        }
-
-        /* Clean URL Bar */
-        #urlbar-background {
-          border: 1px solid var(--border-color) !important;
-          border-radius: 10px !important;
-          background-color: var(--bg-surface) !important;
-          transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-        }
-        
-        #urlbar[focused="true"] > #urlbar-background {
-          border-color: var(--accent) !important;
-          box-shadow: 0 0 0 2px var(--accent) !important; /* Cleaner, thicker focus ring */
-        }
-
-        /* Clean up the nav bar */
-        #nav-bar {
-          box-shadow: none !important;
-          border-top: none !important;
-          padding-top: 2px !important;
-          padding-bottom: 4px !important;
-        }
-      '';
+    };
+    profiles."schedule.special" = {
+      id = 1;
+      isDefault = false;
     };
   };
+
+  # userChrome UI is privileged, so out-of-store symlinks work perfectly here.
+  # You can continue editing your browser UI dynamically without rebuilding Nix.
+  home.file.".mozilla/firefox/zawmoi9h.default/chrome/userChrome.css".source = 
+    config.lib.file.mkOutOfStoreSymlink "/etc/nixos/config/programs/firefox/chrome/userChrome.css";
+
+  # userContent runs in a strict sandbox and breaks relative imports if symlinked out-of-store.
+  # Since you never need to edit these imports, we define them statically here with absolute paths.
+  home.file.".mozilla/firefox/zawmoi9h.default/chrome/userContent.css".text = ''
+    @import "file://${config.home.homeDirectory}/.mozilla/firefox/zawmoi9h.default/chrome/matugen-github.css";
+    @import "file://${config.home.homeDirectory}/.mozilla/firefox/zawmoi9h.default/chrome/matugen-youtube.css";
+  '';
 }

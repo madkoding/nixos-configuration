@@ -46,6 +46,8 @@ Item {
     property real sysVolume: 0
     property bool sysMuted: false
     property real sysBrightness: 0
+    
+    property string currentUserName: ""
 
     // Anti-Jitter Sync States
     property bool isDraggingVol: false
@@ -89,6 +91,17 @@ Item {
     
     onAnimCapacityChanged: batCanvas.requestPaint()
     onBatColorStartChanged: batCanvas.requestPaint()
+
+    Process {
+        id: userPoller
+        command: ["bash", "-c", "echo $USER"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                window.currentUserName = this.text.trim();
+            }
+        }
+    }
 
     Process {
         id: sysPoller
@@ -278,22 +291,47 @@ Item {
                 }
             }
 
-            // Simple top-right logout icon
+            // Expanding top-right logout icon
             Rectangle {
+                id: logoutBtn
                 anchors.top: parent.top; anchors.right: parent.right
                 anchors.margins: 25
-                width: 44; height: 44; radius: 22
+                width: logoutMa.containsMouse ? 44 + usernameText.implicitWidth + 12 : 44
+                height: 44; radius: 22
                 color: logoutMa.containsMouse ? "#1affffff" : "transparent"
                 border.color: logoutMa.containsMouse ? "#33ffffff" : "transparent"
+                clip: true
+                Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
                 Behavior on color { ColorAnimation { duration: 150 } }
-                
-                Text {
-                    anchors.centerIn: parent
-                    font.family: "Iosevka Nerd Font"; font.pixelSize: 18
-                    color: logoutMa.containsMouse ? window.red : window.overlay0
-                    text: "󰍃"
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                Row {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 13
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 12
+
+                    Text {
+                        id: usernameText
+                        text: window.currentUserName
+                        font.family: "JetBrains Mono"
+                        font.weight: Font.Bold
+                        font.pixelSize: 14
+                        color: window.text
+                        anchors.verticalCenter: parent.verticalCenter
+                        opacity: logoutMa.containsMouse ? 1.0 : 0.0
+                        Behavior on opacity { NumberAnimation { duration: 250 } }
+                    }
+
+                    Text {
+                        font.family: "Iosevka Nerd Font"; font.pixelSize: 18
+                        color: logoutMa.containsMouse ? window.red : window.overlay0
+                        text: "󰍃"
+                        anchors.verticalCenter: parent.verticalCenter
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
                 }
+
                 MouseArea {
                     id: logoutMa
                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor

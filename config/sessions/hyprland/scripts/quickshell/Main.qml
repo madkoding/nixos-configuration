@@ -46,7 +46,7 @@ FloatingWindow {
         "music":     { w: 700, h: 620, x: 12, y: 70, comp: "music/MusicPopup.qml" },
         "network":   { w: 900, h: 700, x: screenW - 920, y: 70, comp: "network/NetworkPopup.qml" },
         "stewart":   { w: 800, h: 600, x: Math.floor((screenW/2)-(800/2)), y: Math.floor((screenH/2)-(600/2)), comp: "stewart/stewart.qml" },
-        "wallpaper": { w: 1920, h: 500, x: 0, y: Math.floor((screenH/2)-(500/2)), comp: "wallpaper/WallpaperPicker.qml" },
+        "wallpaper": { w: 1920, h: 650, x: 0, y: Math.floor((screenH/2)-(650/2)), comp: "wallpaper/WallpaperPicker.qml" },
         "monitors":  { w: 850, h: 580, x: Math.floor((screenW/2)-(850/2)), y: Math.floor((screenH/2)-(580/2)), comp: "monitors/MonitorPopup.qml" },
         "focustime": { w: 900, h: 720, x: Math.floor((screenW/2)-(900/2)), y: Math.floor((screenH/2)-(720/2)), comp: "focustime/FocusTimePopup.qml" },
         "hidden":    { w: 1, h: 1, x: -5000, y: -5000, comp: "" } 
@@ -217,7 +217,7 @@ FloatingWindow {
 
     Timer {
         id: resetMorphTimer
-        interval: masterWindow.morphDuration // MODIFIED: Synced with the dynamic animation duration
+        interval: masterWindow.morphDuration 
         onTriggered: masterWindow.disableMorph = false
     }
 
@@ -279,7 +279,7 @@ FloatingWindow {
 
     Timer {
         id: delayedClear
-        interval: masterWindow.isWallpaperTransition ? 150 : masterWindow.morphDuration // MODIFIED: Synced dynamically
+        interval: masterWindow.isWallpaperTransition ? 150 : masterWindow.morphDuration 
         onTriggered: {
             masterWindow.currentActive = "hidden";
             widgetStack.clear();

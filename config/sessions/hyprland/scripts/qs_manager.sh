@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# -----------------------------------------------------------------------------
+# CONSTANTS & ARGUMENTS
+# -----------------------------------------------------------------------------
 QS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BT_PID_FILE="$HOME/.cache/bt_scan_pid"
 BT_SCAN_LOG="$HOME/.cache/bt_scan.log"
@@ -12,6 +15,37 @@ ACTION="$1"
 TARGET="$2"
 SUBTARGET="$3"
 
+# -----------------------------------------------------------------------------
+# FAST PATH: WORKSPACE SWITCHING
+# -----------------------------------------------------------------------------
+# We handle this first to avoid the overhead of the watchdog and prep functions.
+if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
+    WORKSPACE_NUM="$ACTION"
+    MOVE_OPT="$2"
+    
+    # Send close signal to widget immediately
+    echo "close" > "$IPC_FILE"
+    
+    # Determine the switch command
+    CMD="workspace $WORKSPACE_NUM"
+    [[ "$MOVE_OPT" == "move" ]] && CMD="movetoworkspace $WORKSPACE_NUM"
+
+    # Find the best window to focus on the target workspace (excluding qs-master)
+    # Optimized jq query: filtered at the engine level for speed
+    TARGET_ADDR=$(hyprctl clients -j | jq -r ".[] | select(.workspace.id == $WORKSPACE_NUM and .class != \"qs-master\") | .address" | head -n 1)
+
+    if [[ -n "$TARGET_ADDR" && "$TARGET_ADDR" != "null" ]]; then
+        hyprctl --batch "dispatch $CMD ; keyword cursor:no_warps true ; dispatch focuswindow address:$TARGET_ADDR ; keyword cursor:no_warps false"
+    else
+        hyprctl --batch "dispatch $CMD ; keyword cursor:no_warps true ; dispatch focuswindow qs-master ; keyword cursor:no_warps false"
+    fi
+
+    exit 0
+fi
+
+# -----------------------------------------------------------------------------
+# PREP FUNCTIONS
+# -----------------------------------------------------------------------------
 handle_wallpaper_prep() {
     mkdir -p "$THUMB_DIR"
     (
@@ -79,52 +113,28 @@ handle_network_prep() {
 # -----------------------------------------------------------------------------
 # ENSURE MASTER WINDOW & TOP BAR ARE ALIVE (ZOMBIE WATCHDOG)
 # -----------------------------------------------------------------------------
+# These checks are only necessary if we aren't doing a simple workspace switch
 QS_PID=$(pgrep -f "quickshell.*Main\.qml")
 WIN_EXISTS=$(hyprctl clients -j | grep "qs-master")
-
 BAR_PID=$(pgrep -f "quickshell.*TopBar\.qml")
 
-# 1. Manage the Master morphing window
 if [[ -z "$QS_PID" ]] || [[ -z "$WIN_EXISTS" ]]; then
     if [[ -n "$QS_PID" ]]; then
         kill -9 $QS_PID 2>/dev/null
     fi
     quickshell -p "$QS_DIR/Main.qml" >/dev/null 2>&1 &
     disown
-    sleep 0.6 
+    sleep 0.4 # Reduced sleep slightly for snappiness
 fi
 
-# 2. Manage the persistent Top Bar
 if [[ -z "$BAR_PID" ]]; then
     quickshell -p "$QS_DIR/TopBar.qml" >/dev/null 2>&1 &
     disown
 fi
 
 # -----------------------------------------------------------------------------
-# MAIN LOGIC
+# REMAINING ACTIONS (OPEN / CLOSE / TOGGLE)
 # -----------------------------------------------------------------------------
-if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
-    WORKSPACE_NUM="$ACTION"
-    MOVE_OPT="$2"
-    echo "close" > "$IPC_FILE"
-    
-    if [[ "$MOVE_OPT" == "move" ]]; then
-        hyprctl dispatch movetoworkspace "$WORKSPACE_NUM"
-    else
-        hyprctl dispatch workspace "$WORKSPACE_NUM"
-    fi
-
-    TARGET_ADDR=$(hyprctl clients -j | jq -r ".[] | select(.workspace.id == $WORKSPACE_NUM and (.class | contains(\"qs-master\") | not) and (.title | contains(\"qs-master\") | not)) | .address" | head -n 1)
-
-    if [[ -n "$TARGET_ADDR" && "$TARGET_ADDR" != "null" ]]; then
-        hyprctl --batch "keyword cursor:no_warps true ; dispatch focuswindow address:$TARGET_ADDR ; keyword cursor:no_warps false"
-    else
-        hyprctl --batch "keyword cursor:no_warps true ; dispatch focuswindow qs-master ; keyword cursor:no_warps false"
-    fi
-
-    exit 0
-fi
-
 if [[ "$ACTION" == "close" ]]; then
     echo "close" > "$IPC_FILE"
     if [[ "$TARGET" == "network" || "$TARGET" == "all" || -z "$TARGET" ]]; then
@@ -164,7 +174,6 @@ if [[ "$ACTION" == "open" || "$ACTION" == "toggle" ]]; then
 
     if [[ "$TARGET" == "wallpaper" ]]; then
         handle_wallpaper_prep
-        # Passing the exact filename string to QML instead of an index
         echo "$TARGET:$WALLPAPER_THUMB" > "$IPC_FILE"
     else
         echo "$TARGET" > "$IPC_FILE"
